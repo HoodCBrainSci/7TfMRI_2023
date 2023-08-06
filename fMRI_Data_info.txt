@@ -1,0 +1,8 @@
+% Column 1: Participant IDs
+% Column 2: Trial Number (1-60 for encoding, 1-120 for retrieval)
+% Column 3: Hit or Miss (Trial remembered = 1; forgotten = 0)
+% Column 4: Encoding or Retrieval; 1=encoding, 2=retrieval
+% Column 5: Overlap Condition for Retrieval: 3 == no overlaps; 2 = overlapping distractors; 1 = overlapping targets
+% Column 6: BOLD signal CA1
+% Column 7: BOLD signal CA3
+% Column 8: BOLD signal DG
