@@ -1,0 +1,185 @@
+---
+title: "7T fMRI"
+author: "Cameron Hood"
+date: "2023-07-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)  # For data manipulation
+library(tidyr)  # For data reshaping
+library(ggplot2)  # For data visualization
+library(ggdist)  # For raincloud plot
+library(ggridges)
+library(car)  # For ANOVA assumptions checking
+library(stringr)
+library(stats)
+library(introdataviz)
+library(report)
+```
+
+```{r}
+data <- read.csv("fMRI_Data.csv") # read in the data
+
+filtered_data <- data %>%
+  filter(Enc_or_Ret != 1) %>%  #we only need to focus on retrieval, not encoding for this hypothesis
+  mutate(Ret_OL = case_when(
+    Ret_OL == 3 ~ 1,
+    Ret_OL == 1 ~ 3,
+    TRUE ~ Ret_OL
+  ))
+
+filtered_data$Ret_OL <- as.numeric(filtered_data$Ret_OL)
+
+#data where the overlap is made into words.This makes it easier to read without looking to a key over and over.
+filtered_keyed_data <- filtered_data %>% 
+  mutate(Ret_OL = case_when(
+    Enc_or_Ret == 2 & Ret_OL == 1 ~ "No Overlaps",
+    Enc_or_Ret == 2 & Ret_OL == 2 ~ "Overlapping Targets",
+    Enc_or_Ret == 2 & Ret_OL == 3 ~ "Overlapping Distractors",
+    TRUE ~ as.character(Ret_OL)
+    ))
+```
+The data frame "filtered_keyed_data" exists so that a key is not needed to read the chart. However, all statistical tests will be run on the data frame "filtered_data" so that the Ret_OL column is a numeric value.
+
+```{r}
+no_ov <- filtered_data %>%
+  filter(Ret_OL == 1)
+
+ov_tar <- filtered_data %>%
+  filter(Ret_OL == 2 ) 
+
+ov_dis <- filtered_data %>%
+  filter(Ret_OL == 3)
+```
+
+```{r, table 1 pt1}
+sd_tot <- sd(filtered_data$DG) #basic stats and standard deviation of all relevant data
+summary(filtered_data$DG)
+sd_tot
+```
+
+
+```{r, table 1 pt2}
+sd_nov <- sd(no_ov$DG) #standard dev and basic stats of entries with no overlap
+summary(no_ov$DG)
+sd_nov
+```
+
+```{r, table 1, pt3}
+sd_ovtar <- sd(ov_tar$DG) #standard dev and basic stats of overlapping targets
+summary(ov_tar$DG)
+sd_ovtar
+```
+
+```{r, table 1, pt4}
+sd_ovdis <- sd(ov_tar$DG) #standard dev and basic stats of overlapping distractors
+summary(ov_dis$DG)
+sd_ovdis
+```
+
+
+
+```{r}
+model <- aov(DG ~ Ret_OL + Error(PID), data = filtered_data) #one-way repeated measures ANOVA
+anova_result <- summary(model)
+print(anova_result)
+report(model)
+```
+
+# visualization
+
+```{r, Figure 1}
+# Define custom colors for each level
+custom_colors <- c("red", "green", "cyan")
+
+full_box <- ggplot(filtered_data, aes(y = Ret_OL, x = DG, fill = factor(Ret_OL))) +
+  geom_density(alpha = .001, color = "white") +
+  geom_jitter(position = position_jitter(width = 0.1), alpha = 0.5) +
+  geom_boxplot(width = 0.6, outlier.shape = NA, alpha = 0.3, color = "black") +
+  scale_fill_manual(values = custom_colors, labels = c("No Overlaps", "Overlapping Distractors", "Overlapping Targets")) +
+  labs(y = "Overlap Condition for Retrieval", x = "BOLD signal DG", fill = "Type of Overlap") +
+   scale_y_discrete(labels = rev(c("Overlapping Targets", "Overlapping Distractors", "No Overlaps")))+
+  ggtitle("Distribution of BOLD Signal in DG for Different Retrieval Conditions") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 1.2))
+full_box
+```
+
+```{r, figure 2}
+
+# Define custom colors for each level
+custom_colors2 <- c("firebrick", "springgreen4", "blue4")
+
+ggplot(filtered_data, aes(x = DG, y = Ret_OL, color = Ret_OL)) +
+  stat_halfeye(
+    fill = "black",alpha =.75, point_color = NA, .width = .4, height = 0.6,
+    position = position_nudge(y = 0.3)
+  ) +
+  geom_boxplot(
+    position = position_nudge(y = 0.2),
+    width = 0.1, outlier.shape = NA
+  ) +
+ geom_point(
+    aes(color = factor(Ret_OL)),  # Map color aesthetics
+    position = position_jitter(width = 0, height = 0.1, seed = 1),
+    size = .5, shape = 1
+  ) +
+  scale_fill_manual(values = custom_colors2, labels = c("No Overlaps", "Overlapping Distractors", "Overlapping Targets")) +
+  scale_color_manual(values = custom_colors2) +  # Set the color palette for the points
+  labs(y = "Overlap Condition for Retrieval", x = "BOLD signal DG", fill = "Type of Overlap") +
+ scale_y_discrete(labels = rev(c("Overlapping Targets", "Overlapping Distractors", "No Overlaps"))) +
+  ggtitle("Distribution of BOLD Signal in DG for Different Retrieval Conditions") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(hjust = 1)  
+        )
+
+```
+
+```{r}
+
+#this is for the report function. No overlaps is originally held at a value of 3 so this makes sure that the report understands that no overlaps is the condition to be compared to
+```
+
+
+```{r}
+# Fit a Generalized Linear Model
+glmodel <- glm(DG ~ Ret_OL, data = flipped_data, family = gaussian)
+
+
+# Summarize the model
+summary(glmodel)
+report(glmodel)
+```
+
+
+
+```{r}
+print(coef(glmodel))
+```
+
+
+
+
+```{r, Figure 3}
+
+glmjitter <- ggplot(glmodel, aes(x = factor(Ret_OL), y = DG)) +
+  geom_jitter(width = 0.2, height = 0, alpha = 0.7) +   # Jittered points
+  #geom_boxplot(width = 0.1, alpha = 0.3, outlier.shape = NA) +  # Boxplot for each group (optional)
+  geom_smooth(method = "lm", se = FALSE, aes(group = 1), color = "firebrick") +  # Fitted regression line in red color
+  scale_x_discrete(labels = c("No Overlaps", "Overlapping Distractors", "Overlapping Targets")) +  # Custom x-axis labels
+  labs(x = "Overlap Condition for Retrieval", y = "BOLD signal DG") +
+  ggtitle("Scatterplot of BOLD Signal in DG vs. Type of Overlap") +
+  theme_minimal()
+
+glmjitter
+```
+
